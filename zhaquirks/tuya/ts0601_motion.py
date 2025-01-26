@@ -245,8 +245,8 @@ base_tuya_motion = (
         min_value=1,
         max_value=15000,
         step=1,
-        translation_key="presence_timeout",
-        fallback_name="Fade time",
+        translation_key="fading_time",
+        fallback_name="Fading time",
     )
     .add_to_registry()
 )
@@ -980,15 +980,15 @@ base_tuya_motion = (
     )
     .tuya_number(
         dp_id=105,
-        attribute_name="presence_timeout",
+        attribute_name="fading_time",
         type=t.uint16_t,
         device_class=SensorDeviceClass.DURATION,
         unit=UnitOfTime.MINUTES,
         min_value=1,
         max_value=30,
         step=1,
-        translation_key="presence_timeout",
-        fallback_name="Fade time",
+        translation_key="fading_time",
+        fallback_name="Fading time",
     )
     .skip_configuration()
     .add_to_registry()
