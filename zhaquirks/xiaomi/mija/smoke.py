@@ -12,7 +12,6 @@ High Sensitivity: 0x0101000011010003,
 Medium Sensitivity: 0x0102000011010003,
 Low Sensitivity: 0x0103000011010003.
 """
-import logging
 
 from zigpy.profiles import zha
 import zigpy.types as t
@@ -35,6 +34,7 @@ from zhaquirks.const import (
     OUTPUT_CLUSTERS,
     PROFILE_ID,
     SKIP_CONFIGURATION,
+    BatterySize,
 )
 from zhaquirks.xiaomi import (
     LUMI,
@@ -44,8 +44,6 @@ from zhaquirks.xiaomi import (
     XiaomiPowerConfiguration,
     XiaomiQuickInitDevice,
 )
-
-_LOGGER = logging.getLogger(__name__)
 
 
 class XiaomiSmokeIASCluster(CustomCluster, IasZone):
@@ -69,7 +67,7 @@ class MijiaHoneywellSmokeDetectorSensor(XiaomiQuickInitDevice):
 
     def __init__(self, *args, **kwargs):
         """Init method."""
-        self.battery_size = 8  # CR123a
+        self.battery_size = BatterySize.CR123A
         super().__init__(*args, **kwargs)
 
     signature = {

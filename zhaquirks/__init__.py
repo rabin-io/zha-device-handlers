@@ -1,16 +1,20 @@
 """Quirks implementations for the ZHA component of Homeassistant."""
+
 from __future__ import annotations
 
 import asyncio
 import importlib
+import importlib.util
 import logging
 import pathlib
 import pkgutil
-from typing import Any, Dict, List, Optional, Union
+import sys
+import typing
+from typing import Any
 
 import zigpy.device
 import zigpy.endpoint
-from zigpy.quirks import CustomCluster, CustomDevice
+from zigpy.quirks import DEVICE_REGISTRY, CustomCluster, CustomDevice
 import zigpy.types as t
 from zigpy.util import ListenableMixin
 from zigpy.zcl import foundation
@@ -41,7 +45,7 @@ from .const import (
     UNKNOWN,
     VALUE,
     ZHA_SEND_EVENT,
-    ZONE_STATE,
+    ZONE_STATUS_CHANGE_COMMAND,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -57,24 +61,35 @@ class Bus(ListenableMixin):
 
 
 class LocalDataCluster(CustomCluster):
-    """Cluster meant to prevent remote calls."""
+    """Cluster meant to prevent remote calls.
 
-    _CONSTANT_ATTRIBUTES = {}
+    Set _CONSTANT_ATTRIBUTES to provide constant values for attribute ids.
+    Set _VALID_ATTRIBUTES to provide a list of valid attribute ids that will never be shown as unsupported.
+    These are attributes that should be populated later.
+    """
+
+    _CONSTANT_ATTRIBUTES: dict[int, typing.Any] = {}
+    _VALID_ATTRIBUTES: set[int] = set()
 
     async def bind(self):
         """Prevent bind."""
+        self.debug("binding LocalDataCluster")
         return (foundation.Status.SUCCESS,)
 
     async def unbind(self):
         """Prevent unbind."""
+        self.debug("unbinding LocalDataCluster")
         return (foundation.Status.SUCCESS,)
 
     async def _configure_reporting(self, *args, **kwargs):  # pylint: disable=W0221
         """Prevent remote configure reporting."""
+        self.debug("configuring reporting for LocalDataCluster")
         return (foundation.ConfigureReportingResponse.deserialize(b"\x00")[0],)
 
-    async def read_attributes_raw(self, attributes, manufacturer=None):
+    async def read_attributes_raw(self, attributes, manufacturer=None, **kwargs):
         """Prevent remote reads."""
+        msg = "reading attributes for LocalDataCluster"
+        self.debug(f"{msg}: attributes={attributes} manufacturer={manufacturer}")
         records = [
             foundation.ReadAttributeRecord(
                 attr, foundation.Status.UNSUPPORTED_ATTRIBUTE, foundation.TypeValue()
@@ -86,12 +101,17 @@ class LocalDataCluster(CustomCluster):
                 record.value.value = self._CONSTANT_ATTRIBUTES[record.attrid]
             else:
                 record.value.value = self._attr_cache.get(record.attrid)
-            if record.value.value is not None:
+            if (
+                record.value.value is not None
+                or record.attrid in self._VALID_ATTRIBUTES
+            ):
                 record.status = foundation.Status.SUCCESS
         return (records,)
 
-    async def write_attributes(self, attributes, manufacturer=None):
+    async def write_attributes(self, attributes, manufacturer=None, **kwargs):
         """Prevent remote writes."""
+        msg = "writing attributes for LocalDataCluster"
+        self.debug(f"{msg}: attributes={attributes} manufacturer={manufacturer}")
         for attrid, value in attributes.items():
             if isinstance(attrid, str):
                 attrid = self.attributes_by_name[attrid].id
@@ -108,11 +128,10 @@ class EventableCluster(CustomCluster):
     def handle_cluster_request(
         self,
         hdr: foundation.ZCLHeader,
-        args: List[Any],
+        args: list[Any],
         *,
-        dst_addressing: Optional[
-            Union[t.Addressing.Group, t.Addressing.IEEE, t.Addressing.NWK]
-        ] = None,
+        dst_addressing: None
+        | (t.Addressing.Group | t.Addressing.IEEE | t.Addressing.NWK) = None,
     ):
         """Send cluster requests as events."""
         if (
@@ -157,7 +176,7 @@ class GroupBoundCluster(CustomCluster):
         """Bind cluster to a group."""
         # Ensure coordinator is a member of the group
         application = self._endpoint.device.application
-        coordinator = application.get_device(application.ieee)
+        coordinator = application.get_device(application.state.node_info.ieee)
         await coordinator.add_to_group(
             self.COORDINATOR_GROUP_ID,
             name="Coordinator Group - Created by ZHAQuirks",
@@ -183,7 +202,6 @@ class DoublingPowerConfigurationCluster(CustomCluster, PowerConfiguration):
     that don't follow the reporting spec.
     """
 
-    cluster_id = PowerConfiguration.cluster_id
     BATTERY_PERCENTAGE_REMAINING = 0x0021
 
     def _update_attribute(self, attrid, value):
@@ -195,7 +213,6 @@ class DoublingPowerConfigurationCluster(CustomCluster, PowerConfiguration):
 class PowerConfigurationCluster(CustomCluster, PowerConfiguration):
     """Common use power configuration cluster."""
 
-    cluster_id = PowerConfiguration.cluster_id
     BATTERY_VOLTAGE_ATTR = 0x0020
     BATTERY_PERCENTAGE_REMAINING = 0x0021
     MIN_VOLTS = 1.5  # old 2.1
@@ -242,9 +259,10 @@ class _Motion(CustomCluster, IasZone):
 
     def _turn_off(self):
         self._timer_handle = None
-        _LOGGER.debug("%s - Resetting motion sensor", self.endpoint.device.ieee)
-        self.listener_event(CLUSTER_COMMAND, 253, ZONE_STATE, [OFF, 0, 0, 0])
-        self._update_attribute(ZONE_STATE, OFF)
+        self.debug("%s - Resetting motion sensor", self.endpoint.device.ieee)
+        self.listener_event(
+            CLUSTER_COMMAND, 253, ZONE_STATUS_CHANGE_COMMAND, [OFF, 0, 0, 0]
+        )
 
 
 class MotionWithReset(_Motion):
@@ -258,14 +276,14 @@ class MotionWithReset(_Motion):
     def handle_cluster_request(
         self,
         hdr: foundation.ZCLHeader,
-        args: List[Any],
+        args: list[Any],
         *,
-        dst_addressing: Optional[
-            Union[t.Addressing.Group, t.Addressing.IEEE, t.Addressing.NWK]
-        ] = None,
+        dst_addressing: None
+        | (t.Addressing.Group | t.Addressing.IEEE | t.Addressing.NWK) = None,
     ):
         """Handle the cluster command."""
-        if hdr.command_id == ZONE_STATE:
+        # check if the command is for a zone status change of ZoneStatus.Alarm_1 or ZoneStatus.Alarm_2
+        if hdr.command_id == ZONE_STATUS_CHANGE_COMMAND and args[0] & 3:
             if self._timer_handle:
                 self._timer_handle.cancel()
             self._timer_handle = self._loop.call_later(self.reset_s, self._turn_off)
@@ -285,10 +303,11 @@ class MotionOnEvent(_Motion):
 
     def motion_event(self):
         """Motion event."""
-        super().listener_event(CLUSTER_COMMAND, 254, ZONE_STATE, [ON, 0, 0, 0])
-        self._update_attribute(ZONE_STATE, ON)
+        super().listener_event(
+            CLUSTER_COMMAND, 254, ZONE_STATUS_CHANGE_COMMAND, [ON, 0, 0, 0]
+        )
 
-        _LOGGER.debug("%s - Received motion event message", self.endpoint.device.ieee)
+        self.debug("%s - Received motion event message", self.endpoint.device.ieee)
 
         if self._timer_handle:
             self._timer_handle.cancel()
@@ -346,11 +365,11 @@ class OccupancyWithReset(_Occupancy):
 class QuickInitDevice(CustomDevice):
     """Devices with quick initialization from quirk signature."""
 
-    signature: Optional[Dict[str, Any]] = None
+    signature: dict[str, Any] | None = None
 
     @classmethod
     def from_signature(
-        cls, device: zigpy.device.Device, model: Optional[str] = None
+        cls, device: zigpy.device.Device, model: str | None = None
     ) -> zigpy.device.Device:
         """Update device accordingly to quirk signature."""
 
@@ -389,11 +408,52 @@ class QuickInitDevice(CustomDevice):
         return device
 
 
+class NoReplyMixin:
+    """A simple mixin.
+
+    Allows a cluster to have configurable list of command
+    ids that do not generate an explicit reply.
+    """
+
+    void_input_commands: set[int] = {}
+
+    async def command(self, command, *args, expect_reply=None, **kwargs):
+        """Override the default Cluster command.
+
+        expect_reply behavior is based on void_input_commands.
+        Note that this method changes the default value of
+        expect_reply to None. This allows the caller to explicitly force
+        expect_reply to true.
+        """
+
+        if expect_reply is None and command in self.void_input_commands:
+            cmd_expect_reply = False
+        elif expect_reply is None:
+            cmd_expect_reply = True  # the default
+        else:
+            cmd_expect_reply = expect_reply
+
+        rsp = await super().command(
+            command, *args, expect_reply=cmd_expect_reply, **kwargs
+        )
+
+        if expect_reply is None and command in self.void_input_commands:
+            # Pretend we received a default reply
+            return foundation.GENERAL_COMMANDS[
+                foundation.GeneralCommand.Default_Response
+            ].schema(command_id=command, status=foundation.Status.SUCCESS)
+
+        return rsp
+
+
 def setup(custom_quirks_path: str | None = None) -> None:
     """Register all quirks with zigpy, including optional custom quirks."""
 
+    if custom_quirks_path is not None:
+        DEVICE_REGISTRY.purge_custom_quirks(custom_quirks_path)
+
     # Import all quirks in the `zhaquirks` package first
-    for importer, modname, _ispkg in pkgutil.walk_packages(
+    for _importer, modname, _ispkg in pkgutil.walk_packages(
         path=__path__,
         prefix=__name__ + ".",
     ):
@@ -410,9 +470,13 @@ def setup(custom_quirks_path: str | None = None) -> None:
 
     # Treat the custom quirk path (e.g. `/config/custom_quirks/`) itself as a module
     for importer, modname, _ispkg in pkgutil.walk_packages(path=[str(path)]):
+        _LOGGER.debug("Loading custom quirk module %r", modname)
+
         try:
-            _LOGGER.debug("Loading custom quirk module %r", modname)
-            importer.find_module(modname).load_module(modname)
+            spec = importer.find_spec(modname)
+            module = importlib.util.module_from_spec(spec)
+            sys.modules[modname] = module
+            spec.loader.exec_module(module)
         except Exception:
             _LOGGER.exception("Unexpected exception importing custom quirk %r", modname)
         else:

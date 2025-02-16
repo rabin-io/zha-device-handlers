@@ -1,5 +1,8 @@
 """Tuya Din Power Meter."""
+
 from zigpy.profiles import zha
+from zigpy.quirks.v2 import SensorDeviceClass, SensorStateClass
+from zigpy.quirks.v2.homeassistant import PERCENTAGE, UnitOfEnergy
 import zigpy.types as t
 from zigpy.zcl.clusters.general import Basic, Groups, Ota, Scenes, Time
 from zigpy.zcl.clusters.homeautomation import ElectricalMeasurement
@@ -14,7 +17,13 @@ from zhaquirks.const import (
     OUTPUT_CLUSTERS,
     PROFILE_ID,
 )
-from zhaquirks.tuya import TuyaManufClusterAttributes, TuyaOnOff, TuyaSwitch
+from zhaquirks.tuya import (
+    TuyaLocalCluster,
+    TuyaManufClusterAttributes,
+    TuyaOnOff,
+    TuyaSwitch,
+)
+from zhaquirks.tuya.builder import TuyaQuirkBuilder
 
 TUYA_TOTAL_ENERGY_ATTR = 0x0211
 TUYA_CURRENT_ATTR = 0x0212
@@ -40,7 +49,7 @@ class TuyaManufClusterDinPower(TuyaManufClusterAttributes):
     """Manufacturer Specific Cluster of the Tuya Power Meter device."""
 
     attributes = {
-        TUYA_TOTAL_ENERGY_ATTR: ("energy", t.uint16_t, True),
+        TUYA_TOTAL_ENERGY_ATTR: ("energy", t.uint32_t, True),
         TUYA_CURRENT_ATTR: ("current", t.int16s, True),
         TUYA_POWER_ATTR: ("power", t.uint16_t, True),
         TUYA_VOLTAGE_ATTR: ("voltage", t.uint16_t, True),
@@ -65,8 +74,6 @@ class TuyaManufClusterDinPower(TuyaManufClusterAttributes):
 
 class TuyaPowerMeasurement(LocalDataCluster, ElectricalMeasurement):
     """Custom class for power, voltage and current measurement."""
-
-    cluster_id = ElectricalMeasurement.cluster_id
 
     POWER_ID = 0x050B
     VOLTAGE_ID = 0x0505
@@ -120,7 +127,6 @@ class TuyaPowerMeasurement(LocalDataCluster, ElectricalMeasurement):
 class TuyaElectricalMeasurement(LocalDataCluster, Metering):
     """Custom class for total energy measurement."""
 
-    cluster_id = Metering.cluster_id
     CURRENT_DELIVERED_ID = 0x0000
     CURRENT_RECEIVED_ID = 0x0001
     POWER_WATT = 0x0000
@@ -142,7 +148,7 @@ class HikingManufClusterDinPower(TuyaManufClusterAttributes):
 
     attributes = {
         HIKING_DIN_SWITCH_ATTR: ("switch", t.uint8_t, True),
-        HIKING_TOTAL_ENERGY_DELIVERED_ATTR: ("energy_delivered", t.uint16_t, True),
+        HIKING_TOTAL_ENERGY_DELIVERED_ATTR: ("energy_delivered", t.uint32_t, True),
         HIKING_TOTAL_ENERGY_RECEIVED_ATTR: ("energy_received", t.uint16_t, True),
         HIKING_VOLTAGE_CURRENT_ATTR: ("voltage_current", t.uint32_t, True),
         HIKING_POWER_ATTR: ("power", t.uint16_t, True),
@@ -233,6 +239,197 @@ class TuyaPowerMeter(TuyaSwitch):
             }
         }
     }
+
+
+class Tuya3PhaseElectricalMeasurement(ElectricalMeasurement, TuyaLocalCluster):
+    """Tuya Electrical Measurement cluster."""
+
+    _CONSTANT_ATTRIBUTES = {
+        ElectricalMeasurement.AttributeDefs.ac_current_divisor.id: 1000,
+        ElectricalMeasurement.AttributeDefs.ac_voltage_divisor.id: 10,
+        ElectricalMeasurement.AttributeDefs.ac_frequency_divisor.id: 100,
+    }
+
+
+(
+    TuyaQuirkBuilder("_TZE204_ugekduaj", "TS0601")
+    .tuya_dp(
+        dp_id=101,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="ac_frequency",
+    )
+    # Energy consumed
+    .tuya_sensor(
+        dp_id=1,
+        attribute_name="energy_consumed",
+        type=t.uint32_t,
+        divisor=100,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        device_class=SensorDeviceClass.ENERGY,
+        unit=UnitOfEnergy.KILO_WATT_HOUR,
+        fallback_name="Total energy",
+    )
+    .tuya_sensor(
+        dp_id=112,
+        attribute_name="energy_consumed_ph_a",
+        type=t.uint32_t,
+        divisor=100,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        device_class=SensorDeviceClass.ENERGY,
+        unit=UnitOfEnergy.KILO_WATT_HOUR,
+        translation_key="energy_ph_a",
+        fallback_name="Energy phase A",
+    )
+    .tuya_sensor(
+        dp_id=114,
+        attribute_name="energy_consumed_ph_b",
+        type=t.uint32_t,
+        divisor=100,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        device_class=SensorDeviceClass.ENERGY,
+        unit=UnitOfEnergy.KILO_WATT_HOUR,
+        translation_key="energy_ph_b",
+        fallback_name="Energy phase B",
+    )
+    .tuya_sensor(
+        dp_id=116,
+        attribute_name="energy_consumed_ph_c",
+        divisor=100,
+        type=t.uint32_t,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        device_class=SensorDeviceClass.ENERGY,
+        unit=UnitOfEnergy.KILO_WATT_HOUR,
+        translation_key="energy_ph_c",
+        fallback_name="Energy phase C",
+    )
+    # Energy produced
+    .tuya_sensor(
+        dp_id=2,
+        attribute_name="energy_produced",
+        type=t.uint32_t,
+        divisor=100,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        device_class=SensorDeviceClass.ENERGY,
+        unit=UnitOfEnergy.KILO_WATT_HOUR,
+        translation_key="energy_produced",
+        fallback_name="Energy produced",
+    )
+    .tuya_sensor(
+        dp_id=113,
+        attribute_name="energy_produced_ph_a",
+        type=t.uint32_t,
+        converter=lambda x: x / 100,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        device_class=SensorDeviceClass.ENERGY,
+        unit=UnitOfEnergy.KILO_WATT_HOUR,
+        translation_key="energy_produced_ph_a",
+        fallback_name="Energy produced phase A",
+    )
+    .tuya_sensor(
+        dp_id=115,
+        attribute_name="energy_produced_ph_b",
+        type=t.uint32_t,
+        divisor=100,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        device_class=SensorDeviceClass.ENERGY,
+        unit=UnitOfEnergy.KILO_WATT_HOUR,
+        translation_key="energy_produced_ph_b",
+        fallback_name="Energy produced phase B",
+    )
+    .tuya_sensor(
+        dp_id=117,
+        attribute_name="energy_produced_ph_c",
+        type=t.uint32_t,
+        divisor=100,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        device_class=SensorDeviceClass.ENERGY,
+        unit=UnitOfEnergy.KILO_WATT_HOUR,
+        translation_key="energy_produced_ph_c",
+        fallback_name="Energy produced phase C",
+    )
+    # Power
+    .tuya_dp(
+        dp_id=111,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="total_active_power",
+    )
+    .tuya_dp(
+        dp_id=104,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="active_power",
+    )
+    .tuya_dp(
+        dp_id=107,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="active_power_ph_b",
+    )
+    .tuya_dp(
+        dp_id=110,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="active_power_ph_c",
+    )
+    # Voltage
+    .tuya_dp(
+        dp_id=102,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="rms_voltage",
+    )
+    .tuya_dp(
+        dp_id=105,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="rms_voltage_ph_b",
+    )
+    .tuya_dp(
+        dp_id=108,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="rms_voltage_ph_c",
+    )
+    # Current
+    .tuya_dp(
+        dp_id=103,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="rms_current",
+    )
+    .tuya_dp(
+        dp_id=106,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="rms_current_ph_b",
+    )
+    .tuya_dp(
+        dp_id=109,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="rms_current_ph_c",
+    )
+    # Power factor
+    .tuya_sensor(
+        dp_id=15,
+        attribute_name="power_factor",
+        type=t.uint8_t,
+        state_class=SensorStateClass.MEASUREMENT,
+        device_class=SensorDeviceClass.POWER_FACTOR,
+        unit=PERCENTAGE,
+        translation_key="total_power_factor",
+        fallback_name="Total power factor",
+    )
+    .tuya_dp(
+        dp_id=118,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="power_factor",
+    )
+    .tuya_dp(
+        dp_id=119,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="power_factor_ph_b",
+    )
+    .tuya_dp(
+        dp_id=120,
+        ep_attribute=Tuya3PhaseElectricalMeasurement.ep_attribute,
+        attribute_name="power_factor_ph_c",
+    )
+    .adds(Tuya3PhaseElectricalMeasurement)
+    .skip_configuration()
+    .add_to_registry()
+)
 
 
 class HikingPowerMeter(TuyaSwitch):

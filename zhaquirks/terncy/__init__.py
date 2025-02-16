@@ -1,7 +1,8 @@
 """Module for Terncy quirks."""
+
 from collections import deque
 import math
-from typing import Any, List, Optional, Union
+from typing import Any, Optional, Union
 
 from zigpy.quirks import CustomCluster
 import zigpy.types as t
@@ -29,7 +30,7 @@ from zhaquirks.const import (
     TRIPLE_PRESS,
     VALUE,
     ZHA_SEND_EVENT,
-    ZONE_STATE,
+    ZONE_STATUS_CHANGE_COMMAND,
 )
 
 CLICK_TYPES = {1: "single", 2: "double", 3: "triple", 4: "quadruple", 5: "quintuple"}
@@ -57,7 +58,6 @@ ZONE_TYPE = 0x0001
 class IlluminanceMeasurementCluster(CustomCluster, IlluminanceMeasurement):
     """Terncy Illuminance Measurement Cluster."""
 
-    cluster_id = IlluminanceMeasurement.cluster_id
     ATTR_ID = 0
 
     def _update_attribute(self, attrid, value):
@@ -69,7 +69,6 @@ class IlluminanceMeasurementCluster(CustomCluster, IlluminanceMeasurement):
 class TemperatureMeasurementCluster(CustomCluster, TemperatureMeasurement):
     """Terncy Temperature Cluster."""
 
-    cluster_id = TemperatureMeasurement.cluster_id
     ATTR_ID = 0
 
     def _update_attribute(self, attrid, value):
@@ -91,7 +90,9 @@ class MotionCluster(LocalDataCluster, _Motion):
 
     def motion_event(self):
         """Motion event."""
-        super().listener_event(CLUSTER_COMMAND, 254, ZONE_STATE, [ON, 0, 0, 0])
+        super().listener_event(
+            CLUSTER_COMMAND, 254, ZONE_STATUS_CHANGE_COMMAND, [ON, 0, 0, 0]
+        )
 
         if self._timer_handle:
             self._timer_handle.cancel()
@@ -149,7 +150,7 @@ class TerncyRawCluster(CustomCluster):
     def handle_cluster_request(
         self,
         hdr: foundation.ZCLHeader,
-        args: List[Any],
+        args: list[Any],
         *,
         dst_addressing: Optional[
             Union[t.Addressing.Group, t.Addressing.IEEE, t.Addressing.NWK]
@@ -163,10 +164,9 @@ class TerncyRawCluster(CustomCluster):
                 return  # ignore repeated event for single action.
             else:
                 self._last_clicks.append((state, count))
-            if state > 5:
-                state = 5
+            state = min(state, 5)
             event_args = {PRESS_TYPE: CLICK_TYPES[state], "count": count, VALUE: state}
-            action = "button_{}".format(CLICK_TYPES[state])
+            action = f"button_{CLICK_TYPES[state]}"
             self.listener_event(ZHA_SEND_EVENT, action, event_args)
         elif hdr.command_id == 4:  # motion event
             state = args[2]

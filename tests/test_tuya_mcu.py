@@ -6,6 +6,7 @@ from unittest import mock
 import pytest
 from zigpy.zcl import foundation
 
+from tests.common import ClusterListener, MockDatetime
 import zhaquirks
 from zhaquirks.tuya import TUYA_MCU_VERSION_RSP, TUYA_SET_TIME, TuyaDPType
 from zhaquirks.tuya.mcu import (
@@ -16,12 +17,10 @@ from zhaquirks.tuya.mcu import (
     TuyaMCUCluster,
 )
 
-from tests.common import ClusterListener, MockDatetime
-
 zhaquirks.setup()
 
-ZCL_TUYA_VERSION_RSP = b"\x09\x06\x11\x01\x6D\x82"
-ZCL_TUYA_SET_TIME = b"\x09\x12\x24\x0D\x00"
+ZCL_TUYA_VERSION_RSP = b"\x09\x06\x11\x01\x6d\x82"
+ZCL_TUYA_SET_TIME = b"\x09\x12\x24\x0d\x00"
 
 
 @pytest.mark.parametrize(
@@ -357,7 +356,7 @@ async def test_tuya_mcu_classes():
     assert mcu_version
     assert mcu_version.version_raw == 1
     assert mcu_version.version == "0.0.1"
-    mcu_version = TuyaMCUCluster.MCUVersion.deserialize(b"\x00\x05\xFF")[0]
+    mcu_version = TuyaMCUCluster.MCUVersion.deserialize(b"\x00\x05\xff")[0]
     assert mcu_version
     assert mcu_version.version_raw == 255
     assert mcu_version.version == "3.3.15"

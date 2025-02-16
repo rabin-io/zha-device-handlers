@@ -1,9 +1,8 @@
 """Tuya illuminance sensors."""
 
 import math
-from typing import Dict
 
-from zigpy.profiles import zha
+from zigpy.profiles import zgp, zha
 from zigpy.quirks import CustomDevice
 import zigpy.types as t
 from zigpy.zcl.clusters.general import Basic, GreenPowerProxy, Groups, Ota, Scenes, Time
@@ -46,7 +45,7 @@ class TuyaIlluminanceMeasurement(IlluminanceMeasurement, TuyaLocalCluster):
 class TuyaIlluminanceCluster(TuyaMCUCluster):
     """Tuya Illuminance cluster."""
 
-    dp_to_attribute: Dict[int, DPToAttributeMapping] = {
+    dp_to_attribute: dict[int, DPToAttributeMapping] = {
         TUYA_BRIGHTNESS_LEVEL_DP: DPToAttributeMapping(
             TuyaIlluminanceMeasurement.ep_attribute,
             "manufacturer_brightness_level",
@@ -73,6 +72,7 @@ class TuyaIlluminance(CustomDevice):
         #  input_clusters=[4, 5, 61184, 0], output_clusters=[25, 10])
         MODELS_INFO: [
             ("_TZE200_khx7nnka", "TS0601"),
+            ("_TZE204_khx7nnka", "TS0601"),
             ("_TZE200_yi4jtqq1", "TS0601"),
         ],
         ENDPOINTS: {
@@ -91,8 +91,8 @@ class TuyaIlluminance(CustomDevice):
                 # <SimpleDescriptor endpoint=242 profile=41440 device_type=97
                 # input_clusters=[]
                 # output_clusters=[33]
-                PROFILE_ID: 41440,
-                DEVICE_TYPE: 97,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 INPUT_CLUSTERS: [],
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },
@@ -114,8 +114,8 @@ class TuyaIlluminance(CustomDevice):
                 OUTPUT_CLUSTERS: [Time.cluster_id, Ota.cluster_id],
             },
             242: {
-                PROFILE_ID: 41440,
-                DEVICE_TYPE: 97,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 INPUT_CLUSTERS: [],
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },

@@ -1,10 +1,10 @@
 """Device handler for IKEA of Sweden STARKVIND Air purifier."""
+
 from __future__ import annotations
 
-import logging
 from typing import Any
 
-from zigpy.profiles import zha
+from zigpy.profiles import zgp, zha
 from zigpy.quirks import CustomCluster, CustomDevice
 import zigpy.types as t
 from zigpy.zcl.clusters.general import (
@@ -28,8 +28,6 @@ from zhaquirks.const import (
     PROFILE_ID,
 )
 from zhaquirks.ikea import IKEA, IKEA_CLUSTER_ID, WWAH_CLUSTER_ID
-
-_LOGGER = logging.getLogger(__name__)
 
 
 class IkeaAirpurifier(CustomCluster):
@@ -71,9 +69,9 @@ class IkeaAirpurifier(CustomCluster):
                 value is not None and value < 5500
             ):  # > 5500 = out of scale; if value is 65535 (0xFFFF), device is off
                 self.endpoint.device.pm25_bus.listener_event("update_state", value)
-        elif attrid == 0x0006:
-            if value > 9 and value < 51:
-                value = value / 5
+        elif attrid in (0x0006, 0x0007):
+            if value >= 10 and value <= 50:
+                value = value // 5
         super()._update_attribute(attrid, value)
 
     async def write_attributes(
@@ -92,8 +90,6 @@ class IkeaAirpurifier(CustomCluster):
 
 class PM25Cluster(CustomCluster, PM25):
     """PM25 input cluster, only used to show PM2.5 values from IKEA cluster."""
-
-    cluster_id = PM25.cluster_id
 
     def __init__(self, *args, **kwargs):
         """Init."""
@@ -121,7 +117,7 @@ class PM25Cluster(CustomCluster, PM25):
                 await self.endpoint.device.endpoints[1]
                 .in_clusters[64637]
                 .read_attributes(
-                    {"air_quality_25pm"},
+                    ["air_quality_25pm"],
                     allow_cache=allow_cache,
                     only_cache=only_cache,
                     manufacturer=manufacturer,
@@ -177,8 +173,8 @@ class IkeaSTARKVIND(CustomDevice):
             # device_version=0
             # input_clusters=[33] output_clusters=[33]>
             242: {
-                PROFILE_ID: 0xA1E0,  # 41440 (dec)
-                DEVICE_TYPE: 0x0061,
+                PROFILE_ID: zgp.PROFILE_ID,  # 41440 (dec)
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 INPUT_CLUSTERS: [],
                 OUTPUT_CLUSTERS: [
                     GreenPowerProxy.cluster_id,  # 0x0021 = GreenPowerProxy.cluster_id
@@ -210,8 +206,8 @@ class IkeaSTARKVIND(CustomDevice):
             # device_version=0
             # input_clusters=[33] output_clusters=[33]>
             242: {
-                PROFILE_ID: 0xA1E0,  # 41440 (dec)
-                DEVICE_TYPE: 0x0061,
+                PROFILE_ID: zgp.PROFILE_ID,  # 41440 (dec)
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 INPUT_CLUSTERS: [],
                 OUTPUT_CLUSTERS: [
                     GreenPowerProxy.cluster_id,  # 0x0021 = GreenPowerProxy.cluster_id
@@ -253,8 +249,8 @@ class IkeaSTARKVIND_v2(IkeaSTARKVIND):
             # device_version=0
             # input_clusters=[33] output_clusters=[33]>
             242: {
-                PROFILE_ID: 0xA1E0,  # 41440 (dec)
-                DEVICE_TYPE: 0x0061,
+                PROFILE_ID: zgp.PROFILE_ID,  # 41440 (dec)
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 INPUT_CLUSTERS: [],
                 OUTPUT_CLUSTERS: [
                     GreenPowerProxy.cluster_id,  # 0x0021 = GreenPowerProxy.cluster_id
@@ -287,8 +283,8 @@ class IkeaSTARKVIND_v2(IkeaSTARKVIND):
             # device_version=0
             # input_clusters=[33] output_clusters=[33]>
             242: {
-                PROFILE_ID: 0xA1E0,  # 41440 (dec)
-                DEVICE_TYPE: 0x0061,
+                PROFILE_ID: zgp.PROFILE_ID,  # 41440 (dec)
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 INPUT_CLUSTERS: [],
                 OUTPUT_CLUSTERS: [
                     GreenPowerProxy.cluster_id,  # 0x0021 = GreenPowerProxy.cluster_id

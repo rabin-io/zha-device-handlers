@@ -1,13 +1,16 @@
 """Fixtures for all tests."""
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 import zigpy.application
 import zigpy.device
+from zigpy.device import Device
 import zigpy.quirks
 import zigpy.types
-import zigpy.zcl.foundation as foundation
+from zigpy.zcl import foundation
+from zigpy.zcl.clusters.general import Basic
+from zigpy.zdo.types import NodeDescriptor
 
 from zhaquirks.const import (
     DEVICE_TYPE,
@@ -19,6 +22,8 @@ from zhaquirks.const import (
     OUTPUT_CLUSTERS,
     PROFILE_ID,
 )
+
+from .async_mock import sentinel
 
 
 class MockApp(zigpy.application.ControllerApplication):
@@ -70,6 +75,9 @@ class MockApp(zigpy.application.ControllerApplication):
     async def start_network(self, *args, **kwargs):
         """Mock start_network."""
 
+    async def permit_with_link_key(self, *args, **kwargs):
+        """Mock permit_with_link_key."""
+
     async def write_network_info(self, *args, **kwargs):
         """Mock write_network_info."""
 
@@ -84,7 +92,6 @@ class MockApp(zigpy.application.ControllerApplication):
 def app_controller_mock():
     """App controller mock."""
     config = {"device": {"path": "/dev/ttyUSB0"}, "database": None}
-    config = MockApp.SCHEMA(config)
     app = MockApp(config)
     return app
 
@@ -129,6 +136,7 @@ def zigpy_device_from_quirk(MockAppController, ieee_mock):
         raw_device = zigpy.device.Device(MockAppController, ieee, nwk)
         raw_device.manufacturer = manufacturer
         raw_device.model = model
+        raw_device.node_desc = NodeDescriptor(manufacturer_code=1234)
 
         endpoints = quirk.signature.get(ENDPOINTS, {})
         for ep_id, ep_data in endpoints.items():
@@ -151,6 +159,74 @@ def zigpy_device_from_quirk(MockAppController, ieee_mock):
         return device
 
     return _dev
+
+
+@pytest.fixture
+def zigpy_device_from_v2_quirk(MockAppController, ieee_mock):
+    """Create zigpy device from Quirk's signature."""
+
+    def _dev(
+        manufacturer: str,
+        model: str,
+        endpoint_ids: list[int] = [1],
+        ieee=None,
+        nwk=zigpy.types.NWK(0x1234),
+        apply_quirk=True,
+    ):
+        if ieee is None:
+            ieee = ieee_mock
+
+        raw_device = zigpy.device.Device(MockAppController, ieee, nwk)
+        raw_device.manufacturer = manufacturer
+        raw_device.model = model
+        raw_device.node_desc = NodeDescriptor(manufacturer_code=1234)
+
+        for endpoint_id in endpoint_ids:
+            ep = raw_device.add_endpoint(endpoint_id)
+            # basic is mandatory
+            if endpoint_id == 1:
+                ep.add_input_cluster(Basic.cluster_id)
+
+        quirked = zigpy.quirks.get_device(raw_device)
+
+        if not apply_quirk:
+            for ep_id, ep_data in quirked.endpoints.items():
+                if ep_id != 0:
+                    ep = raw_device.add_endpoint(ep_id)
+                    ep.profile_id = ep_data.get(PROFILE_ID, 0x0260)
+                    ep.device_type = ep_data.get(DEVICE_TYPE, 0xFEDB)
+                    in_clusters = ep_data.get(INPUT_CLUSTERS, [])
+                    for cluster_id in in_clusters:
+                        ep.add_input_cluster(cluster_id)
+                    out_clusters = ep_data.get(OUTPUT_CLUSTERS, [])
+                    for cluster_id in out_clusters:
+                        ep.add_output_cluster(cluster_id)
+            return raw_device
+
+        MockAppController.devices[ieee] = quirked
+
+        return quirked
+
+    return _dev
+
+
+@pytest.fixture(name="device_mock")
+def real_device(MockAppController):
+    """Device fixture with a single endpoint."""
+    ieee = sentinel.ieee
+    nwk = 0x2233
+    device = Device(MockAppController, ieee, nwk)
+
+    device.add_endpoint(1)
+    device[1].profile_id = 0x0104
+    device[1].device_type = 0x0051
+    device.model = "model"
+    device.manufacturer = "manufacturer"
+    device[1].add_input_cluster(0x0000)
+    device[1].add_input_cluster(0xEF00)
+    device[1].add_output_cluster(0x000A)
+    device[1].add_output_cluster(0x0019)
+    return device
 
 
 @pytest.fixture
@@ -191,6 +267,9 @@ def assert_signature_matches_quirk():
                 return self.endpoints.get(key)
 
         test_dev = FakeDevice(signature)
+        test_dev._application = Mock()
+        test_dev._application._dblistener = None
+
         device = zigpy.quirks.get_device(test_dev)
         assert isinstance(device, quirk)
 

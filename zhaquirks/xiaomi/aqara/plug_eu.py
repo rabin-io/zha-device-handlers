@@ -1,9 +1,8 @@
 """Xiaomi Aqara EU plugs."""
-import logging
 
 import zigpy
-from zigpy.profiles import zha
-import zigpy.types as types
+from zigpy import types
+from zigpy.profiles import zgp, zha
 from zigpy.zcl.clusters.general import (
     Alarms,
     AnalogInput,
@@ -20,7 +19,6 @@ from zigpy.zcl.clusters.general import (
 from zigpy.zcl.clusters.homeautomation import ElectricalMeasurement
 from zigpy.zcl.clusters.smartenergy import Metering
 
-from zhaquirks import Bus
 from zhaquirks.const import (
     DEVICE_TYPE,
     ENDPOINTS,
@@ -39,16 +37,11 @@ from zhaquirks.xiaomi import (
     XiaomiCustomDevice,
 )
 
-_LOGGER = logging.getLogger(__name__)
-
-XIAOMI_PROFILE_ID = 0xA1E0
-XIAOMI_DEVICE_TYPE = 0x61
 OPPLE_MFG_CODE = 0x115F
 
 
 async def remove_from_ep(dev: zigpy.device.Device) -> None:
-    """
-    Remove devices that are in group 0 by default, so IKEA devices don't control them.
+    """Remove devices that are in group 0 by default, so IKEA devices don't control them.
 
     This is only needed for newer firmware versions. Only a downgrade will fully fix this but this should improve it.
     See https://github.com/zigpy/zha-device-handlers/pull/1656#issuecomment-1244750465 for details.
@@ -64,7 +57,6 @@ async def remove_from_ep(dev: zigpy.device.Device) -> None:
 class OppleCluster(XiaomiAqaraE1Cluster):
     """Opple cluster."""
 
-    ep_attribute = "opple_cluster"
     attributes = {
         0x0009: ("mode", types.uint8_t, True),
         0x0201: ("power_outage_memory", types.Bool, True),
@@ -86,13 +78,6 @@ class OppleCluster(XiaomiAqaraE1Cluster):
 
 class PlugMMEU01(XiaomiCustomDevice):
     """lumi.plug.mmeu01 plug."""
-
-    def __init__(self, *args, **kwargs):
-        """Init."""
-        self.voltage_bus = Bus()
-        self.consumption_bus = Bus()
-        self.power_bus = Bus()
-        super().__init__(*args, **kwargs)
 
     signature = {
         MODELS_INFO: [
@@ -124,8 +109,8 @@ class PlugMMEU01(XiaomiCustomDevice):
             # input_clusters=[]
             # output_clusters=[33]>
             242: {
-                PROFILE_ID: XIAOMI_PROFILE_ID,
-                DEVICE_TYPE: XIAOMI_DEVICE_TYPE,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },
         },
@@ -156,8 +141,8 @@ class PlugMMEU01(XiaomiCustomDevice):
                 INPUT_CLUSTERS: [AnalogInputCluster],
             },
             242: {
-                PROFILE_ID: XIAOMI_PROFILE_ID,
-                DEVICE_TYPE: XIAOMI_DEVICE_TYPE,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },
         },
@@ -211,8 +196,8 @@ class PlugMMEU01Alt1(PlugMMEU01):
             # input_clusters=[]
             # output_clusters=[33]>
             242: {
-                PROFILE_ID: XIAOMI_PROFILE_ID,
-                DEVICE_TYPE: XIAOMI_DEVICE_TYPE,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },
         },
@@ -250,8 +235,8 @@ class PlugMMEU01Alt2(PlugMMEU01):
             # input_clusters=[]
             # output_clusters=[33]>
             242: {
-                PROFILE_ID: XIAOMI_PROFILE_ID,
-                DEVICE_TYPE: XIAOMI_DEVICE_TYPE,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },
         },
@@ -307,8 +292,8 @@ class PlugMMEU01Alt3(PlugMMEU01):
             # input_clusters=[]
             # output_clusters=[33]>
             242: {
-                PROFILE_ID: XIAOMI_PROFILE_ID,
-                DEVICE_TYPE: XIAOMI_DEVICE_TYPE,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },
         },

@@ -1,4 +1,5 @@
 """Quirk for Philips motion sensors."""
+
 from zigpy.profiles import zha, zll
 from zigpy.quirks import CustomCluster, CustomDevice
 import zigpy.types as t
@@ -27,7 +28,7 @@ from zhaquirks.const import (
     OUTPUT_CLUSTERS,
     PROFILE_ID,
 )
-from zhaquirks.philips import PHILIPS, SIGNIFY, OccupancyCluster
+from zhaquirks.philips import PHILIPS, SIGNIFY, PhilipsOccupancySensing
 
 
 class BasicCluster(CustomCluster, Basic):
@@ -106,7 +107,7 @@ class PhilipsMotion(CustomDevice):
                     Identify.cluster_id,
                     IlluminanceMeasurement.cluster_id,
                     TemperatureMeasurement.cluster_id,
-                    OccupancyCluster,
+                    PhilipsOccupancySensing,
                 ],
                 OUTPUT_CLUSTERS: [Ota.cluster_id],
             },
@@ -152,7 +153,7 @@ class SignifyMotion(CustomDevice):
                     Identify.cluster_id,
                     IlluminanceMeasurement.cluster_id,
                     TemperatureMeasurement.cluster_id,
-                    OccupancyCluster,
+                    PhilipsOccupancySensing,
                 ],
                 OUTPUT_CLUSTERS: [
                     Basic.cluster_id,

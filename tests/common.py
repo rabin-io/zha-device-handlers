@@ -1,4 +1,5 @@
 """Quirks common helpers."""
+
 import asyncio
 import datetime
 
@@ -15,7 +16,7 @@ class ClusterListener:
         self.attribute_updates = []
         cluster.add_listener(self)
 
-    def attribute_updated(self, attr_id, value):
+    def attribute_updated(self, attr_id, value, timestamp):
         """Attribute updated listener."""
         self.attribute_updates.append((attr_id, value))
 

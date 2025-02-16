@@ -6,7 +6,7 @@ See xbee.md for additional information.
 import asyncio
 import enum
 import logging
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 from zigpy.quirks import CustomDevice
 import zigpy.types as t
@@ -248,7 +248,7 @@ class XBeePWM(LocalDataCluster, AnalogOutput):
 
     _ep_id_2_pwm = {0xDA: "M0", 0xDB: "M1"}
 
-    async def write_attributes(self, attributes, manufacturer=None):
+    async def write_attributes(self, attributes, manufacturer=None, **kwargs):
         """Intercept present_value attribute write."""
         attr_id = None
         if ATTR_PRESENT_VALUE in attributes:
@@ -263,15 +263,15 @@ class XBeePWM(LocalDataCluster, AnalogOutput):
             at_command = ENDPOINT_TO_AT.get(self._endpoint.endpoint_id)
             await self._endpoint.device.remote_at(at_command, PIN_ANALOG_OUTPUT)
 
-        return await super().write_attributes(attributes, manufacturer)
+        return await super().write_attributes(attributes, manufacturer, **kwargs)
 
-    async def read_attributes_raw(self, attributes, manufacturer=None):
+    async def read_attributes_raw(self, attributes, manufacturer=None, **kwargs):
         """Intercept present_value attribute read."""
         if ATTR_PRESENT_VALUE in attributes or "present_value" in attributes:
             at_command = self._ep_id_2_pwm.get(self._endpoint.endpoint_id)
             result = await self._endpoint.device.remote_at(at_command)
             self._update_attribute(ATTR_PRESENT_VALUE, float(result))
-        return await super().read_attributes_raw(attributes, manufacturer)
+        return await super().read_attributes_raw(attributes, manufacturer, **kwargs)
 
 
 class XBeeRemoteATRequest(LocalDataCluster):
@@ -320,7 +320,7 @@ class XBeeRemoteATRequest(LocalDataCluster):
                 await self._command(options, name.encode("ascii"), data, *args),
                 timeout=REMOTE_AT_COMMAND_TIMEOUT,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _LOGGER.warning("No response to %s command", name)
             raise
 
@@ -430,7 +430,7 @@ class XBeeRemoteATResponse(LocalDataCluster):
     def handle_cluster_request(
         self,
         hdr: foundation.ZCLHeader,
-        args: List[Any],
+        args: list[Any],
         *,
         dst_addressing: Optional[t.AddrMode] = None,
     ):
@@ -447,9 +447,7 @@ class XBeeRemoteATResponse(LocalDataCluster):
                 status = ATCommandResult.ERROR
 
             if status:
-                fut.set_exception(
-                    RuntimeError("AT Command response: {}".format(status.name))
-                )
+                fut.set_exception(RuntimeError(f"AT Command response: {status.name}"))
                 return
 
             response_type = AT_COMMANDS[args.cmd.decode("ascii")]
@@ -486,7 +484,7 @@ class XBeeDigitalIOCluster(LocalDataCluster, BinaryInput):
     def handle_cluster_request(
         self,
         hdr: foundation.ZCLHeader,
-        args: List[Any],
+        args: list[Any],
         *,
         dst_addressing: Optional[t.AddrMode] = None,
     ):
@@ -589,7 +587,7 @@ class XBeeSerialDataCluster(LocalDataCluster):
     def handle_cluster_request(
         self,
         hdr: foundation.ZCLHeader,
-        args: List[Any],
+        args: list[Any],
         *,
         dst_addressing: Optional[t.AddrMode] = None,
     ):
@@ -631,6 +629,8 @@ class XBeeCommon(CustomDevice):
 
     def deserialize(self, endpoint_id, cluster_id, data):
         """Deserialize."""
+        if endpoint_id == 0:
+            return super().deserialize(endpoint_id, cluster_id, data)
         tsn = self._application.get_sequence()
         command_id = 0x0000
         hdr = foundation.ZCLHeader.cluster(tsn, command_id)

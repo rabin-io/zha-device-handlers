@@ -1,5 +1,6 @@
 """Tuya based touch switch."""
-from zigpy.profiles import zha
+
+from zigpy.profiles import zgp, zha
 from zigpy.zcl.clusters.general import Basic, GreenPowerProxy, Groups, Ota, Scenes, Time
 
 from zhaquirks.const import (
@@ -21,8 +22,6 @@ from zhaquirks.tuya.mcu import (
 
 class TuyaInWallLevelControlNM(NoManufacturerCluster, TuyaInWallLevelControl):
     """Tuya Level cluster for inwall dimmable device with NoManufacturerID."""
-
-    pass
 
 
 # --- DEVICE SUMMARY ---
@@ -48,8 +47,10 @@ class TuyaSingleSwitchDimmer(TuyaDimmerSwitch):
             ("_TZE200_la2c2uo9", "TS0601"),
             ("_TZE200_1agwnems", "TS0601"),  # TODO: validation pending?
             ("_TZE200_9cxuhakf", "TS0601"),  # Added for Mercator IKUU SSWM-DIMZ Device
+            ("_TZE200_a0syesf5", "TS0601"),  # Added for Mercator IKUU SSWRM-ZB
             ("_TZE200_p0gzbqct", "TS0601"),
             ("_TZE200_w4cryh2i", "TS0601"),
+            ("_TZE204_dcnsggvz", "TS0601"),
         ],
         ENDPOINTS: {
             # <SimpleDescriptor endpoint=1 profile=260 device_type=0x0051
@@ -94,6 +95,7 @@ class TuyaDoubleSwitchDimmer(TuyaDimmerSwitch):
     signature = {
         MODELS_INFO: [
             ("_TZE200_e3oitdyu", "TS0601"),
+            ("_TZE204_bxoo2swd", "TS0601"),
         ],
         ENDPOINTS: {
             # <SimpleDescriptor endpoint=1 profile=260 device_type=0x0051
@@ -148,6 +150,12 @@ class TuyaSingleSwitchDimmerGP(TuyaDimmerSwitch):
         MODELS_INFO: [
             ("_TZE200_3p5ydos3", "TS0601"),
             ("_TZE200_ip2akl4w", "TS0601"),
+            ("_TZE200_vucankjx", "TS0601"),  # Loratap
+            ("_TZE200_y8yjulon", "TS0601"),
+            ("_TZE204_n9ctkb6j", "TS0601"),  # BSEED
+            ("_TZE204_vevc4c6g", "TS0601"),  # BSEED
+            ("_TZE204_5cuocqty", "TS0601"),  # Avatto ZDMS16-1
+            ("_TZE204_nqqylykc", "TS0601"),  # Avatto ZDMS16-1
         ],
         ENDPOINTS: {
             # <SimpleDescriptor endpoint=1 profile=260 device_type=0x0100
@@ -169,8 +177,8 @@ class TuyaSingleSwitchDimmerGP(TuyaDimmerSwitch):
             # input_clusters=[]
             # output_clusters=[33]
             242: {
-                PROFILE_ID: 41440,
-                DEVICE_TYPE: 97,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 INPUT_CLUSTERS: [],
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },
@@ -192,8 +200,8 @@ class TuyaSingleSwitchDimmerGP(TuyaDimmerSwitch):
                 OUTPUT_CLUSTERS: [Time.cluster_id, Ota.cluster_id],
             },
             242: {
-                PROFILE_ID: 41440,
-                DEVICE_TYPE: 97,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 INPUT_CLUSTERS: [],
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },
@@ -207,6 +215,10 @@ class TuyaDoubleSwitchDimmerGP(TuyaDimmerSwitch):
     signature = {
         MODELS_INFO: [
             ("_TZE200_fjjbhx9d", "TS0601"),
+            ("_TZE200_gwkapsoq", "TS0601"),  # Loratap
+            ("_TZE204_zenj4lxv", "TS0601"),
+            ("_TZE204_o9gyszw2", "TS0601"),  # Avatto ZDMS16-2
+            ("_TZE204_jtbgusdc", "TS0601"),  # Avatto DMS16/ZDMS16
         ],
         ENDPOINTS: {
             # <SimpleDescriptor endpoint=1 profile=260 device_type=0x0100
@@ -228,8 +240,8 @@ class TuyaDoubleSwitchDimmerGP(TuyaDimmerSwitch):
             # input_clusters=[]
             # output_clusters=[33]
             242: {
-                PROFILE_ID: 41440,
-                DEVICE_TYPE: 97,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 INPUT_CLUSTERS: [],
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },
@@ -260,8 +272,8 @@ class TuyaDoubleSwitchDimmerGP(TuyaDimmerSwitch):
                 OUTPUT_CLUSTERS: [],
             },
             242: {
-                PROFILE_ID: 41440,
-                DEVICE_TYPE: 97,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 INPUT_CLUSTERS: [],
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },
@@ -296,8 +308,8 @@ class TuyaTripleSwitchDimmerGP(TuyaDimmerSwitch):
             # input_clusters=[]
             # output_clusters=[33]
             242: {
-                PROFILE_ID: 41440,
-                DEVICE_TYPE: 97,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 INPUT_CLUSTERS: [],
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },
@@ -337,8 +349,8 @@ class TuyaTripleSwitchDimmerGP(TuyaDimmerSwitch):
                 OUTPUT_CLUSTERS: [],
             },
             242: {
-                PROFILE_ID: 41440,
-                DEVICE_TYPE: 97,
+                PROFILE_ID: zgp.PROFILE_ID,
+                DEVICE_TYPE: zgp.DeviceType.PROXY_BASIC,
                 INPUT_CLUSTERS: [],
                 OUTPUT_CLUSTERS: [GreenPowerProxy.cluster_id],
             },

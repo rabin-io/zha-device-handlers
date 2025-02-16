@@ -1,7 +1,9 @@
 """Device handler for Smartwings blinds."""
+
 from __future__ import annotations
 
-from typing import Any, Coroutine
+from collections.abc import Coroutine
+from typing import Any
 
 from zigpy.profiles import zha
 from zigpy.quirks import CustomCluster, CustomDevice
@@ -29,7 +31,7 @@ from zhaquirks.const import (
 
 
 class InvertedWindowCoveringCluster(CustomCluster, WindowCovering):
-    """This WindowCovering cluster implementation inverts the commands for up and down."""
+    """WindowCovering cluster implementation that inverts the commands for up and down."""
 
     CMD_UP_OPEN = WindowCovering.commands_by_name["up_open"].id
     CMD_DOWN_CLOSE = WindowCovering.commands_by_name["down_close"].id
@@ -40,7 +42,6 @@ class InvertedWindowCoveringCluster(CustomCluster, WindowCovering):
         *args,
         manufacturer: int | t.uint16_t | None = None,
         expect_reply: bool = True,
-        tries: int = 1,
         tsn: int | t.uint8_t | None = None,
         **kwargs: Any,
     ) -> Coroutine:
@@ -56,7 +57,6 @@ class InvertedWindowCoveringCluster(CustomCluster, WindowCovering):
             *args,
             manufacturer=manufacturer,
             expect_reply=expect_reply,
-            tries=tries,
             tsn=tsn,
             **kwargs,
         )
